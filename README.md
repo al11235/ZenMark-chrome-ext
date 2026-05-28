@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/28339908/README.md)
 # ZenMark
 > A premium, zero-dependency Chrome Extension to scan, clean, and organize your bookmark database.
 
@@ -11,7 +10,8 @@ ZenMark helps you declutter your bookmarks bar, find duplicate bookmarks, identi
 * **Inactive Link Finder:** Cross-references your bookmarks with Chrome's history API. Shows exactly how many days ago you last opened a link (e.g. `Opened 12d ago`). If a bookmark has no history record, it calculates the bookmark's age and displays `Never opened (Created 14d ago)` or `Opened 90d+ ago`.
 * **Duplicate Bookmark Scanner:** Groups duplicate URLs across all your folders. Features a **"Keep First, Select Rest"** button to instantly clean up redundant entries while keeping one copy safe.
 * **Suggested Auto-Categorization:** Scans bookmark titles and domains against semantic rules. Instantly groups matching links into logical folders (e.g. *Development & Tech*, *Shopping & Commerce*, *Design & Creative*) and allows bulk moving them in one click.
-* **Clean Folder Breadcrumbs:** Rebuilds nested folder paths (e.g., `Work › Projects › Antigravity`) and automatically hides the Bookmarks Bar prefix since it is assumed.
+* **Clean Folder Breadcrumbs:** Rebuilds nested folder paths (e.g., `Work › Projects › Antigravity`) and automatically hides the Bookmarks Bar prefix dynamically across all browsers and languages.
+* **Toolbar Filtering & Sorting:** Filter your full bookmark collection by inactivity (30d, 90d, 180d, 365d) and sort them dynamically by *Recently Added*, *Oldest Added*, *Recently Opened*, or *Least Recently Opened* (which lists never-opened bookmarks first) for rapid bulk cleanup.
 * **Presentation-Ready Mock Mode:** Open `dashboard.html` directly in any browser. The page will automatically detect the lack of extension APIs and load a simulated bookmark database. This lets you demonstrate or test the tool with zero installation!
 
 ---
