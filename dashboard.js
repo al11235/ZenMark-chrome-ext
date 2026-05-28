@@ -3,10 +3,12 @@ let allBookmarks = [];      // Flat array of all bookmark nodes
 let foldersMap = {};        // Map of folderId -> folderName
 let foldersList = [];       // List of folder nodes
 let folderParentMap = {};   // Map of folderId -> parentFolderId
+let systemFolderIds = new Set(); // Set of folder IDs that represent system roots (e.g. Bookmarks Bar, Other Bookmarks)
 let historyMap = {};        // Map of URL -> lastVisitTime (timestamp)
 let selectedBookmarkIds = new Set();
 let currentTab = 'all';     // 'all', 'inactive', 'duplicates', 'categorizer'
 let isMockMode = false;
+
 
 // Mock Data for Standalone Preview (if not running inside Chrome Extension)
 const MOCK_FOLDERS = {
@@ -60,31 +62,31 @@ const MOCK_HISTORY = {
 const AUTO_CATEGORIES = [
   {
     name: 'Development & Tech',
-    icon: '💻',
+    icon: '',
     domains: ['github.com', 'stackoverflow.com', 'dev.to', 'npmjs.com', 'medium.com', 'developer.chrome.com', 'codepen.io'],
     keywords: ['dev', 'code', 'api', 'repository', 'docs', 'programming', 'javascript', 'python', 'tutorial']
   },
   {
     name: 'Social Media & Networks',
-    icon: '👥',
+    icon: '',
     domains: ['reddit.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'linkedin.com', 'instagram.com', 'tiktok.com'],
     keywords: ['social', 'community', 'feed', 'profile', 'video']
   },
   {
     name: 'Design & Creative',
-    icon: '🎨',
+    icon: '',
     domains: ['figma.com', 'dribbble.com', 'behance.net', 'unsplash.com', 'canva.com', 'pinterest.com'],
     keywords: ['design', 'creative', 'inspiration', 'asset', 'illustration', 'ui', 'ux']
   },
   {
     name: 'Shopping & Commerce',
-    icon: '🛍️',
+    icon: '',
     domains: ['amazon.com', 'ebay.com', 'aliexpress.com', 'etsy.com', 'shopify.com', 'walmart.com'],
     keywords: ['shop', 'store', 'cart', 'buy', 'checkout', 'price', 'product']
   },
   {
     name: 'Reference & Education',
-    icon: '📚',
+    icon: '',
     domains: ['wikipedia.org', 'w3schools.com', 'coursera.org', 'udemy.com', 'edu', 'britannica.com'],
     keywords: ['learn', 'wiki', 'study', 'education', 'encyclopedia', 'course']
   }
@@ -122,28 +124,40 @@ function normalizeUrl(url) {
 
 // Resolve full folder path starting after Bookmarks Bar or Other Bookmarks
 function getFolderPath(folderId) {
-  if (!folderId || folderId === '0' || folderId === '1' || folderId === '2' || folderId === '3') return '/';
+  if (!folderId || folderId === '0' || folderId === 'root' || systemFolderIds.has(folderId)) return '';
   
-  // If the folder itself is directly under the root or its parent is missing, return '/'
-  if (folderParentMap[folderId] === '0' || !folderParentMap[folderId]) return '/';
+  // If the folder itself is directly under the root or its parent is missing, return ''
+  const parent = folderParentMap[folderId];
+  if (!parent || parent === '0' || parent === 'root') return '';
   
   const pathParts = [];
   let currentId = folderId;
   
-  while (currentId && currentId !== '0') {
-    // Stop when we reach system root folders, parent is root, or parent is missing
-    if (currentId === '1' || currentId === '2' || currentId === '3' || 
-        folderParentMap[currentId] === '0' || !folderParentMap[currentId]) {
+  while (currentId) {
+    if (currentId === '0' || currentId === 'root' || systemFolderIds.has(currentId)) {
       break;
     }
+    
+    const parentId = folderParentMap[currentId];
+    if (!parentId || parentId === '0' || parentId === 'root') {
+      break;
+    }
+    
     const name = foldersMap[currentId];
     if (name) {
-      pathParts.unshift(name);
+      const lowerName = name.toLowerCase().trim();
+      if (lowerName !== 'bookmarks bar' && 
+          lowerName !== 'bookmarks toolbar' &&
+          lowerName !== 'other bookmarks' && 
+          lowerName !== 'bookmarks menu' && 
+          lowerName !== 'root') {
+        pathParts.unshift(name);
+      }
     }
-    currentId = folderParentMap[currentId];
+    currentId = parentId;
   }
   
-  return pathParts.length > 0 ? pathParts.join(' › ') : '/';
+  return pathParts.join(' › ');
 }
 
 // Load Bookmarks and History with Graceful Fallback
@@ -191,6 +205,8 @@ async function loadMockData() {
     '6': '2'
   };
 
+  systemFolderIds = new Set(['1', '2']);
+
   // Populate history map with normalized URL keys
   historyMap = {};
   Object.keys(MOCK_HISTORY).forEach(url => {
@@ -219,6 +235,7 @@ async function loadLiveData() {
   foldersMap = {};
   foldersList = [];
   folderParentMap = {};
+  systemFolderIds = new Set();
   
   // Recursively traverse bookmarks tree
   function traverse(node) {
@@ -227,6 +244,12 @@ async function loadLiveData() {
       foldersMap[node.id] = node.title || (node.id === '0' ? 'Root' : 'Unnamed Folder');
       folderParentMap[node.id] = node.parentId;
       foldersList.push({ id: node.id, title: foldersMap[node.id] });
+      
+      // If direct child of root, it's a system folder
+      if (node.parentId === '0' || node.parentId === 'root') {
+        systemFolderIds.add(node.id);
+      }
+      
       node.children.forEach(traverse);
     } else {
       // It is a bookmark
@@ -285,9 +308,9 @@ function populateFolderDropdowns() {
   folderFilter.innerHTML = '<option value="all">All Folders (Root)</option>';
   modalFolderSelect.innerHTML = '';
   
-  // Exclude system folders ('0', '1', '2') and map folders to their full branch path
+  // Exclude system folders and map folders to their full branch path
   const foldersWithPaths = foldersList
-    .filter(f => f.title && f.id !== '0' && f.id !== '1' && f.id !== '2' && f.id !== '3')
+    .filter(f => f.title && f.id !== '0' && f.id !== 'root' && !systemFolderIds.has(f.id))
     .map(folder => ({
       id: folder.id,
       path: getFolderPath(folder.id)
@@ -410,11 +433,34 @@ function setupEventListeners() {
   });
 
   // Filters & Search
-  document.getElementById('search-input').addEventListener('input', renderApp);
-  document.getElementById('folder-filter').addEventListener('change', renderApp);
+  document.getElementById('search-input').addEventListener('input', () => {
+    selectedBookmarkIds.clear();
+    document.getElementById('select-all-checkbox').checked = false;
+    updateBulkActionBar();
+    renderApp();
+  });
+  
+  document.getElementById('folder-filter').addEventListener('change', () => {
+    selectedBookmarkIds.clear();
+    document.getElementById('select-all-checkbox').checked = false;
+    updateBulkActionBar();
+    renderApp();
+  });
   
   const timeFilter = document.getElementById('time-filter');
-  timeFilter.addEventListener('change', renderApp);
+  timeFilter.addEventListener('change', () => {
+    selectedBookmarkIds.clear();
+    document.getElementById('select-all-checkbox').checked = false;
+    updateBulkActionBar();
+    renderApp();
+  });
+
+  document.getElementById('sort-filter').addEventListener('change', () => {
+    selectedBookmarkIds.clear();
+    document.getElementById('select-all-checkbox').checked = false;
+    updateBulkActionBar();
+    renderApp();
+  });
 
   // Select All Checkbox
   const selectAllCheckbox = document.getElementById('select-all-checkbox');
@@ -470,8 +516,57 @@ function setupEventListeners() {
   document.getElementById('btn-apply-categories').addEventListener('click', applyAutoCategorization);
 }
 
+// Dynamic update of time filter dropdown options based on active tab
+function updateTimeFilterDropdown() {
+  const timeFilter = document.getElementById('time-filter');
+  if (!timeFilter) return;
+  const currentValue = timeFilter.value;
+  
+  // Clear and rebuild options to ensure correct items are visible
+  timeFilter.innerHTML = '';
+  
+  if (currentTab === 'all') {
+    const optAll = document.createElement('option');
+    optAll.value = 'all';
+    optAll.textContent = 'Opened: Any Time';
+    timeFilter.appendChild(optAll);
+  }
+  
+  const options = [
+    { value: '30', text: 'Unopened for 30d+' },
+    { value: '90', text: 'Unopened for 90d+' },
+    { value: '180', text: 'Unopened for 180d+' },
+    { value: '365', text: 'Unopened for 365d+' }
+  ];
+  
+  options.forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt.value;
+    o.textContent = opt.text;
+    timeFilter.appendChild(o);
+  });
+  
+  // Restore selected value or set default
+  if (currentTab === 'all') {
+    if (currentValue && currentValue !== '') {
+      timeFilter.value = currentValue;
+    } else {
+      timeFilter.value = 'all';
+    }
+  } else if (currentTab === 'inactive') {
+    if (currentValue && currentValue !== 'all') {
+      timeFilter.value = currentValue;
+    } else {
+      timeFilter.value = '365';
+    }
+  }
+}
+
 // Rendering Main Router
 function renderApp() {
+  // Update time filter options dynamically first
+  updateTimeFilterDropdown();
+
   const cardsGrid = document.getElementById('cards-grid');
   const duplicatesContainer = document.getElementById('duplicates-container');
   const categorizerContainer = document.getElementById('categorizer-container');
@@ -495,11 +590,17 @@ function renderApp() {
   toolbar.classList.remove('hidden');
   bulkActionBar.classList.remove('hidden');
 
+  const timeFilterVal = document.getElementById('time-filter').value;
+
   switch (currentTab) {
     case 'all':
       title.textContent = 'All Bookmarks';
       subtitle.textContent = 'Browse and organize your full bookmark collection.';
       cardsGrid.classList.remove('hidden');
+      timeFilterContainer.classList.remove('hidden'); // Enable time filter on All Bookmarks
+      if (timeFilterVal !== 'all') {
+        disclaimerBanner.classList.remove('hidden'); // Show disclaimer if time filtering is active
+      }
       renderBookmarksGrid(getFilteredBookmarks());
       break;
 
@@ -533,13 +634,13 @@ function renderApp() {
   }
 }
 
-// Get Bookmarks after applying search filters and folder filters
+// Get Bookmarks after applying search filters, folder filters, and sorting
 function getFilteredBookmarks() {
   const searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
   const folderFilterVal = document.getElementById('folder-filter').value;
-  const timeLimitDays = parseInt(document.getElementById('time-filter').value);
+  const timeFilterVal = document.getElementById('time-filter').value;
   
-  return allBookmarks.filter(b => {
+  let filtered = allBookmarks.filter(b => {
     // 1. Search Query filter
     const matchesSearch = b.title.toLowerCase().includes(searchQuery) || b.url.toLowerCase().includes(searchQuery);
     if (!matchesSearch) return false;
@@ -549,10 +650,10 @@ function getFilteredBookmarks() {
       return false;
     }
 
-    // 3. Time Filter (only for Inactive tab)
-    if (currentTab === 'inactive') {
+    // 3. Time Filter
+    if (timeFilterVal !== 'all') {
       const lastVisit = historyMap[normalizeUrl(b.url)];
-      const thresholdMs = timeLimitDays * 24 * 60 * 60 * 1000;
+      const thresholdMs = parseInt(timeFilterVal) * 24 * 60 * 60 * 1000;
       
       // If never visited (not in history map), it is considered older than limit.
       if (!lastVisit) return true;
@@ -563,6 +664,30 @@ function getFilteredBookmarks() {
 
     return true;
   });
+
+  // Apply Sorting
+  const sortVal = document.getElementById('sort-filter').value;
+  if (sortVal === 'newest-added') {
+    filtered.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+  } else if (sortVal === 'oldest-added') {
+    filtered.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0));
+  } else if (sortVal === 'recently-opened') {
+    filtered.sort((a, b) => {
+      const visitA = historyMap[normalizeUrl(a.url)] || 0;
+      const visitB = historyMap[normalizeUrl(b.url)] || 0;
+      return visitB - visitA;
+    });
+  } else if (sortVal === 'least-opened') {
+    filtered.sort((a, b) => {
+      const visitA = historyMap[normalizeUrl(a.url)] || 0;
+      const visitB = historyMap[normalizeUrl(b.url)] || 0;
+      if (visitA === 0 && visitB !== 0) return -1;
+      if (visitB === 0 && visitA !== 0) return 1;
+      return visitA - visitB;
+    });
+  }
+
+  return filtered;
 }
 
 // Render Bookmarks Grid view
@@ -600,8 +725,8 @@ function renderBookmarksGrid(bookmarks) {
 
     // Meta Badge for folder path
     const folderPath = getFolderPath(bookmark.parentId);
-    const folderBadgeHtml = folderPath && folderPath !== '/'
-      ? `<span class="badge badge-folder" title="Folder Path: ${folderPath}">📁 ${escapeHtml(folderPath)}</span>`
+    const folderBadgeHtml = folderPath
+      ? `<span class="badge badge-folder" title="Folder Path: ${folderPath}">${escapeHtml(folderPath)}</span>`
       : '';
 
     // Meta Badge for Last Visited
@@ -691,7 +816,6 @@ function renderDuplicatesView() {
     groupCard.innerHTML = `
       <div class="duplicate-group-header">
         <div class="duplicate-group-title">
-          <span>🔗</span>
           <span style="font-weight: 600;">${escapeHtml(list[0].title || 'Duplicate Link')}</span>
         </div>
         <button class="btn btn-secondary btn-keep-first" style="padding: 6px 12px; font-size: 12px;">Keep First, Select Rest</button>
@@ -776,7 +900,6 @@ function renderCategorizerView() {
     card.innerHTML = `
       <div class="category-group-header">
         <div class="category-name-wrapper">
-          <span class="category-icon">${category.icon}</span>
           <span class="category-name">${category.name}</span>
         </div>
         <span class="category-count">${category.bookmarks.length} links</span>
@@ -791,7 +914,6 @@ function renderCategorizerView() {
       const item = document.createElement('div');
       item.className = 'category-bookmark-item';
       item.innerHTML = `
-        <span style="font-size: 11px;">🔗</span>
         <span title="${escapeHtml(b.title || b.url)}">${escapeHtml(b.title || b.url)}</span>
       `;
       itemsList.appendChild(item);
