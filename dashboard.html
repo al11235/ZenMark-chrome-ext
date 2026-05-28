@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZenMark - Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">✨</span>
+        <span class="brand-name">ZenMark</span>
+      </div>
+      <nav class="nav-menu">
+        <button class="nav-item active" id="nav-all" data-tab="all">
+          <span class="nav-icon">📚</span> All Bookmarks
+        </button>
+        <button class="nav-item" id="nav-inactive" data-tab="inactive">
+          <span class="nav-icon">❄️</span> Inactive Bookmarks
+        </button>
+        <button class="nav-item" id="nav-duplicates" data-tab="duplicates">
+          <span class="nav-icon">👥</span> Duplicates
+        </button>
+        <button class="nav-item" id="nav-categorizer" data-tab="categorizer">
+          <span class="nav-icon">🏷️</span> Auto-Categorizer
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <p>V1.0 • Made with Care</p>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      <!-- Top Header Bar -->
+      <header class="main-header">
+        <div class="header-title-area">
+          <h1 id="page-title">All Bookmarks</h1>
+          <p id="page-subtitle">Manage and search your entire bookmark collection.</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-value" id="stat-total">0</span>
+            <span class="stat-label">Total</span>
+          </div>
+          <div class="stat-card warning">
+            <span class="stat-value" id="stat-inactive">0</span>
+            <span class="stat-label">Inactive</span>
+          </div>
+          <div class="stat-card info">
+            <span class="stat-value" id="stat-duplicates">0</span>
+            <span class="stat-label">Duplicates</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- History Disclaimer (Hidden/Shown dynamically) -->
+      <div class="disclaimer-banner" id="history-disclaimer">
+        <span class="banner-icon">ℹ️</span>
+        <div class="banner-content">
+          <strong>Chrome Local History Limit:</strong> Chrome only stores visiting history for the last 90 days. Any bookmarks unvisited in this period will be marked as "Inactive (90+ Days / Never)".
+        </div>
+      </div>
+
+      <!-- Toolbar / Filters -->
+      <section class="toolbar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="Search title or URL...">
+        </div>
+        
+        <div class="filter-group">
+          <!-- Folder Filter -->
+          <div class="filter-item">
+            <label for="folder-filter">Folder:</label>
+            <select id="folder-filter">
+              <option value="all">All Folders</option>
+            </select>
+          </div>
+
+          <!-- Time Period (Only visible on Inactive Tab) -->
+          <div class="filter-item hidden" id="time-filter-container">
+            <label for="time-filter">Inactive for:</label>
+            <select id="time-filter">
+              <option value="30">30 Days</option>
+              <option value="90">90 Days</option>
+              <option value="180">180 Days</option>
+              <option value="365" selected>1 Year (365 Days)</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bulk Actions Bar -->
+      <section class="bulk-actions-bar">
+        <div class="select-all-container">
+          <input type="checkbox" id="select-all-checkbox">
+          <label for="select-all-checkbox" id="select-all-label">Select All</label>
+        </div>
+        <div class="action-buttons">
+          <span class="selected-count-badge" id="selected-count">0 selected</span>
+          <button class="btn btn-secondary" id="btn-move" disabled>📂 Move to Folder</button>
+          <button class="btn btn-danger" id="btn-delete" disabled>🗑️ Delete Selected</button>
+        </div>
+      </section>
+
+      <!-- Bookmark Cards Grid / Content Area -->
+      <section class="content-container">
+        <!-- Loading State -->
+        <div class="loading-state" id="loading-spinner">
+          <div class="spinner"></div>
+          <p>Analyzing your bookmark database...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state hidden" id="empty-state">
+          <span class="empty-icon">🎉</span>
+          <h3>All Clear!</h3>
+          <p id="empty-message">No bookmarks match the current filters.</p>
+        </div>
+
+        <!-- Cards Grid -->
+        <div class="cards-grid hidden" id="cards-grid">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Duplicates Grouped List -->
+        <div class="duplicates-container hidden" id="duplicates-container">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Categorizer Panel -->
+        <div class="categorizer-container hidden" id="categorizer-container">
+          <div class="categorizer-header">
+            <h3>AI-Suggested Categories</h3>
+            <p>We analyzed your bookmark domains and folder structure. Here are suggested group organizations.</p>
+            <button class="btn btn-primary" id="btn-apply-categories">Apply All Categorizations</button>
+          </div>
+          <div class="categorizer-groups" id="categorizer-groups-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Move Folder Modal -->
+  <div class="modal-overlay hidden" id="move-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Move selected to Folder</h3>
+        <button class="close-btn" id="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Choose an existing folder or create a new one to move <span id="modal-selected-count">0</span> bookmark(s):</p>
+        
+        <div class="form-group">
+          <label for="modal-folder-select">Target Folder:</label>
+          <select id="modal-folder-select">
+            <!-- Dynamic list -->
+          </select>
+        </div>
+
+        <div class="divider"><span>OR</span></div>
+
+        <div class="form-group">
+          <label for="new-folder-input">Create New Folder:</label>
+          <input type="text" id="new-folder-input" placeholder="Type new folder name...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cancel-move">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-move">Confirm Move</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Dialog -->
+  <div class="modal-overlay hidden" id="delete-modal">
+    <div class="modal modal-alert">
+      <div class="modal-header">
+        <h3>⚠️ Confirm Permanent Deletion</h3>
+        <button class="close-btn" id="close-delete-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to permanently delete <strong id="delete-selected-count">0</strong> bookmark(s)?</p>
+        <p class="warning-text">This action cannot be undone. The bookmarks will be removed from Chrome permanently.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cancel-delete">Cancel</button>
+        <button class="btn btn-danger" id="btn-confirm-delete">Yes, Delete Permenantly</button>
+      </div>
+    </div>
+  </div>
+  <script src="dashboard.js"></script>
+</body>
+</html>
